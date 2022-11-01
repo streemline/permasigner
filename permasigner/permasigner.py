@@ -39,7 +39,7 @@ class Permasigner:
         # Output debug message if the script
         # is running from a package
         if self.in_package:
-            logger.debug(f"Running from package, not cloned repo.", self.args.debug)
+            logger.debug("Running from package, not cloned repo.", self.args.debug)
 
         # Check for dependencies
         logger.log("Checking for dependencies...", color=colors["yellow"])
@@ -80,15 +80,11 @@ class Permasigner:
                     logger.error("URL provided is not an IPA, make sure to provide a direct link.")
                     exit(1)
 
-                logger.log(f"Downloading IPA...", color=colors["yellow"])
+                logger.log("Downloading IPA...", color=colors["yellow"])
                 save_path = self.download_ipa()
                 self.extract_ipa(save_path)
-            # Check if path arg was specified
-            # then, check if path is a deb or an ipa
             elif self.args.path:
                 self.check_path_arguments()
-            # Check if folder arg was specified
-            # then, sign each ipa in the folder
             elif self.args.folder:
                 self.outputs = self.sign_folder()
 
@@ -103,7 +99,7 @@ class Permasigner:
 
             print()
             # Done, print end message
-            logger.info(f"We are finished!")
+            logger.info("We are finished!")
 
             if self.is_installed:
                 logger.info("The application was installed to your device, no further steps are required!")
@@ -115,9 +111,7 @@ class Permasigner:
             print(f"    {colors['green']}https://patreon.com/nebulalol")
 
             if self.args.folder:
-                final_outputs = ""
-                for output in self.outputs:
-                    final_outputs += f'{output}\n'
+                final_outputs = "".join(f'{output}\n' for output in self.outputs)
                 logger.info(f"Output files:\n{final_outputs}")
             else:
                 logger.info(f"Output file: {out_dir}")
@@ -131,16 +125,14 @@ class Permasigner:
         bundle = {}
         plist_path = bundle_path / "Info.plist"
         if plist_path.exists():
-            print(f"Reading plist...")
+            print("Reading plist...")
             bundle = utils.read_plist(plist_path, self.args)
-        # If it doesn't exist
-        # then, exit with an error
         else:
             logger.error("Unable to find Info.plist, can't read application data")
             exit(1)
 
         # Create directories in tmp dir
-        logger.log(f"Making deb directories...", color=colors["yellow"])
+        logger.log("Making deb directories...", color=colors["yellow"])
         (self.tmp / 'deb/Applications').mkdir(parents=True)
         (self.tmp / 'deb/DEBIAN').mkdir(parents=True)
 
@@ -240,7 +232,7 @@ class Permasigner:
                 elif path.is_file():
                     path.unlink()
 
-            logger.log(f"Extracting ipa to temporary directory", color=colors["yellow"])
+            logger.log("Extracting ipa to temporary directory", color=colors["yellow"])
             self.extract_ipa(ipa)
 
             output = self.permasign()

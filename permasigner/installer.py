@@ -30,7 +30,7 @@ def install_with_sudo_on_ios(output_path: Path, debug: bool) -> bool:
 
     # This is needed on elucuratus bootstrap
     # Otherwise the package will end up in a half installed state
-    logger.debug(f"Running command: sudo apt-get install -f", debug)
+    logger.debug("Running command: sudo apt-get install -f", debug)
     subprocess.run(['sudo', 'apt-get', 'install', '-f'], stdin=PIPE, capture_output=True)
 
     return True
@@ -45,7 +45,7 @@ def install_with_su_on_ios(output_path: Path, debug: bool) -> bool:
 
     # This is needed on elucuratus bootstrap
     # Otherwise the package will end up in half installed state
-    logger.debug(f"Running command: su root -c 'apt-get install -f'", debug)
+    logger.debug("Running command: su root -c 'apt-get install -f'", debug)
     subprocess.run("su root -c 'apt-get install -f'".split(), stdin=PIPE, capture_output=True)
 
     return True
@@ -127,7 +127,7 @@ def install_from_pc(path: Path, args: Namespace) -> bool:
                     remote_path='/var/mobile/Documents')
 
         # Check if user is in sudoers file by running sudo -nv
-        logger.debug(f"Running command: sudo -nv", args.debug)
+        logger.debug("Running command: sudo -nv", args.debug)
         stdin, stdout, stderr = client.exec_command('sudo -nv')
         status = stdout.channel.recv_exit_status()
 
@@ -153,7 +153,7 @@ def install_from_pc(path: Path, args: Namespace) -> bool:
             # Is needed on elucubratus
             # so that the package does not end up
             # in half-installed state
-            logger.debug(f"Running command: sudo apt-get install -f", args.debug)
+            logger.debug("Running command: sudo apt-get install -f", args.debug)
             stdin, stdout, stderr = client.exec_command('sudo apt-get install -f', get_pty=True)
 
             # Sleep to prevent echoing password
@@ -167,7 +167,6 @@ def install_from_pc(path: Path, args: Namespace) -> bool:
             output = stdout.read().decode()
 
             logger.debug(output, args.debug)
-        # Exit status 0: user has sudo rights and NOPASSWD
         elif status == 0:
             # Install by invoking dpkg with sudo
             logger.debug(f"Running command: sudo dpkg -i /var/mobile/Documents/{filename}", args.debug)
@@ -181,12 +180,10 @@ def install_from_pc(path: Path, args: Namespace) -> bool:
 
             # Needed on elucuratus
             # to prevent half-installed state
-            logger.debug(f"Running command: sudo apt-get install -f", args.debug)
+            logger.debug("Running command: sudo apt-get install -f", args.debug)
             stdin, stdout, stderr = client.exec_command('sudo apt-get install -f')
 
             logger.debug(stdout.read().decode(), args.debug)
-        # User does not have sudo rights
-        # Fallback to su
         else:
             # Install with dpkg by invoking su as root user
             logger.debug(f"Running command: su root -c 'dpkg -i /var/mobile/Documents/{filename}", args.debug)
@@ -195,7 +192,6 @@ def install_from_pc(path: Path, args: Namespace) -> bool:
             # Read output from the channel
             output = stdout.channel.recv(2048)
 
-            # Check if we got a password prompt
             if "password".encode() in output or "Password".encode() in output:
                 # Read password from cli
                 # and write it to stdin
@@ -221,7 +217,6 @@ def install_from_pc(path: Path, args: Namespace) -> bool:
                 # Block until we can read the output from the channel
                 output = stdout.channel.recv(2048).decode()
 
-                logger.debug(output, args.debug)
             else:
                 logger.log("Installing... this may take some time", color=colors["yellow"])
 
@@ -231,12 +226,11 @@ def install_from_pc(path: Path, args: Namespace) -> bool:
 
                 # Needed on elucuratus
                 # to prevent half-installed state
-                logger.debug(f"Running command: sudo apt-get install -f", args.debug)
+                logger.debug("Running command: sudo apt-get install -f", args.debug)
                 stdin, stdout, stderr = client.exec_command('sudo apt-get install -f')
 
                 # Block until we can read the output from stdout
                 output = stdout.read().decode()
 
-                logger.debug(output, args.debug)
-
+            logger.debug(output, args.debug)
         return True
