@@ -29,22 +29,21 @@ class Ldid:
             with open(filepath, 'rb') as fh:
                 m = hashlib.md5()
                 while True:
-                    data = fh.read(8192)
-                    if not data:
+                    if data := fh.read(8192):
+                        m.update(data)
+                    else:
                         break
-                    m.update(data)
                 return m.hexdigest()
         else:
             try:
                 res = requests.get(url, stream=True)
-                if res.status_code == 200:
-                    content = bytearray()
-                    for data in res.iter_content(4096):
-                        content += data
-                        m.update(data)
-                    return m.hexdigest(), content
-                else:
+                if res.status_code != 200:
                     return m.hexdigest(), None
+                content = bytearray()
+                for data in res.iter_content(4096):
+                    content += data
+                    m.update(data)
+                return m.hexdigest(), content
             except (NewConnectionError, ConnectionError, RequestException) as err:
                 logger.error(f"ldid download URL is not reachable. Error: {err}")
                 return m.hexdigest(), None
@@ -72,10 +71,7 @@ class Ldid:
     @property
     def local_name(self) -> str:
         # Get local ldid name based on the platform
-        if utils.is_windows():
-            return "ldid.exe"
-        else:
-            return "ldid"
+        return "ldid.exe" if utils.is_windows() else "ldid"
 
     def exists_in_data_dir(self) -> bool:
         # Check if ldid is present in the data dir
@@ -90,7 +86,7 @@ class Ldid:
         # Write bytearray to a new file
         with open(ldid_name, "wb") as f:
             f.write(content)
-            logger.debug(f"Wrote file.", self.args.debug)
+            logger.debug("Wrote file.", self.args.debug)
 
         # Remove outdated version of ldid it's present in the data dir
         if self.exists:
@@ -108,12 +104,7 @@ class Ldid:
     def download(self) -> None:
         # Check if ldidfork arg was passed
         # then, use it's value to construct a url
-        if self.args.ldidfork:
-            ldid_fork = self.args.ldidfork
-        # Otherwise, use nebula's fork
-        else:
-            ldid_fork = "permasigner"
-
+        ldid_fork = self.args.ldidfork or "permasigner"
         # Check for ldid's presence in data directory
         exists = self.exists_in_data_dir()
 
@@ -128,28 +119,23 @@ class Ldid:
 
         # Get remote hash of ldid
         remote_hash, content = self.get_hash(None, url)
-        local_hash = None
-
-        # Determine ldid's hash if it's present in the data directory
-        if exists:
-            local_hash = self.get_hash(local_filepath, None)
-
+        local_hash = self.get_hash(local_filepath, None) if exists else None
         # Check if both hashes match, and if so proceed to the signing stage
         if remote_hash == local_hash:
-            logger.debug(f"ldid hash successfully verified.", self.args.debug)
-        else:
-            # If hashes do no match, and the content is empty, fallback to existent ldid found in PATH/data dir
-            if content is None:
-                if exists:
-                    logger.log('Could not verify remote hash, falling back to ldid found in path',
-                               color=colors["yellow"])
-                else:
-                    logger.error('Download url is not reachable, and no ldid found in path, exiting.')
-                    exit(1)
-            # If hashes do not match but the content is not empty, save it to a file
+            logger.debug("ldid hash successfully verified.", self.args.debug)
+        elif content is None:
+            if exists:
+                logger.log('Could not verify remote hash, falling back to ldid found in path',
+                           color=colors["yellow"])
             else:
-                logger.debug(f"Ldid hash failed to verify, saving newer version", self.args.debug)
-                self.save_file(content)
+                logger.error('Download url is not reachable, and no ldid found in path, exiting.')
+                exit(1)
+        else:
+            logger.debug(
+                "Ldid hash failed to verify, saving newer version", self.args.debug
+            )
+
+            self.save_file(content)
 
 
 class Signer:
@@ -163,11 +149,7 @@ class Signer:
     def sign_with_ldid(self, ldid: str) -> None:
         """ Sign the bundle with ldid """
 
-        if ldid:
-            ldid_cmd = ldid
-        else:
-            ldid_cmd = self.data_dir / "ldid"
-
+        ldid_cmd = ldid or self.data_dir / "ldid"
         logger.log("Signing bundle with ldid...", color=colors["yellow"])
         logger.debug(
             f"Running command: {ldid_cmd} -S{self.tmp / 'entitlements.plist'} -M -K{self.cert} -Upassword '{self.bundle_path}'",
@@ -198,7 +180,7 @@ class Signer:
         logger.debug(f"Running command: security import {self.cert} -P password -A", self.args.debug)
         subprocess.run(['security', 'import', self.cert, '-P', 'password', '-A'], stdout=subprocess.DEVNULL)
 
-        logger.log(f"Signing bundle with codesign...", color=colors["yellow"])
+        logger.log("Signing bundle with codesign...", color=colors["yellow"])
         logger.debug(f"Running command: codesign -s 'We Do A Little Trolling iPhone OS Application Signing "
                      f"--force --deep --preserve-metadata=entitlements {self.bundle_path}", self.args.debug)
         subprocess.run(['codesign', '-s', 'We Do A Little Trolling iPhone OS Application Signing',

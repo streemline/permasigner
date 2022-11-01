@@ -30,10 +30,7 @@ def utf8(s):
     This is used for filenames, which the user may supply as unicode, but is
     always stored as bytes in the archive.
     """
-    if isinstance(s, bytes):
-        return s
-    else:
-        return s.encode('utf-8')
+    return s if isinstance(s, bytes) else s.encode('utf-8')
 
 
 class ArInfo(object):
@@ -120,7 +117,7 @@ class ArInfo(object):
         provide them.
         """
         attrs = (self._name, self.size, self.mtime, self.perms, self.uid, self.gid)
-        if not any(a is None for a in attrs):
+        if all(a is not None for a in attrs):
             return self.__class__(*attrs)
 
         name, size, mtime, perms, uid, gid = attrs
@@ -210,7 +207,7 @@ class ArFile(object):
 
     def _check(self, expected_mode):
         if self._file is None:
-            raise ValueError("Attempted to use a closed %s" % self.__class__.__name__)
+            raise ValueError(f"Attempted to use a closed {self.__class__.__name__}")
         if self._mode != expected_mode:
             if self._mode == 'r':
                 raise ValueError("Can't change a read-only archive")
@@ -252,14 +249,10 @@ class ArFile(object):
         name = name.updatefromdisk()
 
         self._file.write(name.tobuffer())
-        if fileobj is None:
-            fp = _open(name.name, 'rb')
-        else:
-            fp = fileobj
-
+        fp = _open(name.name, 'rb') if fileobj is None else fileobj
         for pos in range(0, name.size, CHUNKSIZE):
             chunk = fp.read(min(CHUNKSIZE, name.size - pos))
-            if len(chunk) != CHUNKSIZE and len(chunk) != name.size - pos:
+            if len(chunk) not in [CHUNKSIZE, name.size - pos]:
                 raise RuntimeError("File changed size?")
             self._file.write(chunk)
         if name.size % 2 == 1:
@@ -278,7 +271,7 @@ class ArFile(object):
         :rtype: [unix_ar.ArInfo]
         """
         self._check('r')
-        return list(i.__copy__() for i in self._entries)
+        return [i.__copy__() for i in self._entries]
 
     def getinfo(self, member):
         """
@@ -294,22 +287,16 @@ class ArFile(object):
         """
         self._check('r')
         if isinstance(member, ArInfo):
-            if member.offset is not None:
-                self._file.seek(member.offset, 0)
-                return ArInfo.frombuffer(self._file.read(60))
-            else:
-                index = self._name_map[member.name]
-                return self._entries[index].__copy__()
+            if member.offset is None:
+                return self._entries[self._name_map[member.name]].__copy__()
+            self._file.seek(member.offset, 0)
+            return ArInfo.frombuffer(self._file.read(60))
         else:
             index = self._name_map[utf8(member)]
             return self._entries[index].__copy__()
 
     def _extract(self, member, path):
-        if hasattr(path, 'write'):
-            fp = path
-        else:
-            fp = _open(path.rstrip(b'/'), 'wb')
-
+        fp = path if hasattr(path, 'write') else _open(path.rstrip(b'/'), 'wb')
         self._file.seek(member.offset + 60, 0)
         for pos in range(0, member.size, CHUNKSIZE):
             chunk = self._file.read(min(CHUNKSIZE, member.size - pos))
@@ -339,9 +326,8 @@ class ArFile(object):
                 member.size = actualmember.size
         else:
             member = actualmember
-        if not hasattr(path, 'write'):
-            if not path or os.path.isdir(path):
-                path = os.path.join(utf8(path), member.name)
+        if not hasattr(path, 'write') and (not path or os.path.isdir(path)):
+            path = os.path.join(utf8(path), member.name)
         return self._extract(member, path)
 
     def extractfile(self):
@@ -399,11 +385,10 @@ def open(file, mode='r'):
     """
     if hasattr(file, 'read'):
         return ArFile(file, mode)
+    if mode in ['r', 'rb']:
+        omode = 'rb'
+    elif mode in ['w', 'wb']:
+        omode = 'wb'
     else:
-        if mode == 'r' or mode == 'rb':
-            omode = 'rb'
-        elif mode == 'w' or mode == 'wb':
-            omode = 'wb'
-        else:
-            raise ValueError("mode must be one of 'r' or 'w'")
-        return ArFile(_open(file, omode), mode)
+        raise ValueError("mode must be one of 'r' or 'w'")
+    return ArFile(_open(file, omode), mode)

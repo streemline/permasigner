@@ -48,7 +48,7 @@ class SafeStreamSocket:
             sent = self.sock.send(bytes(msg)[totalsent:])
             if sent == 0:
                 raise MuxError("socket connection broken")
-            totalsent = totalsent + sent
+            totalsent += sent
 
     def recv(self, size):
         msg = b''
@@ -56,7 +56,7 @@ class SafeStreamSocket:
             chunk = self.sock.recv(size - len(msg))
             if chunk == b'':
                 raise MuxError("socket connection broken")
-            msg = msg + chunk
+            msg += chunk
         return msg
 
 
@@ -303,15 +303,15 @@ class SocketRelay(object):
                     n = self.b.send(self.atob)
                     self.atob = self.atob[n:]
                 if self.a in rlo:
-                    s = self.a.recv(self.maxbuf - len(self.atob))
-                    if not s:
+                    if s := self.a.recv(self.maxbuf - len(self.atob)):
+                        self.atob += s
+                    else:
                         return
-                    self.atob += s
                 if self.b in rlo:
-                    s = self.b.recv(self.maxbuf - len(self.btoa))
-                    if not s:
+                    if s := self.b.recv(self.maxbuf - len(self.btoa)):
+                        self.btoa += s
+                    else:
                         return
-                    self.btoa += s
             except ConnectionResetError:
                 return
 

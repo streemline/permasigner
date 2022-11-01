@@ -16,7 +16,7 @@ from . import logger
 
 def is_ios() -> bool:
     """Determine if current OS is iOS """
-    if not sys.platform == "darwin":
+    if sys.platform != "darwin":
         return False
 
     return platform.machine().startswith("i")
@@ -79,21 +79,15 @@ def cmd_in_path(cmd: str) -> Union[None, str]:
     if path is None:
         return None
 
-    # Check if ldid is from procursus
     if cmd == "ldid":
-        if "procursus" in sp.getoutput(path):
-            return path
-        return None
-
+        return path if "procursus" in sp.getoutput(path) else None
     return path
 
 
 def get_storage_dir() -> Path:
     """ Get path to data directory"""
 
-    # Get the value of PERMASIGNER_HOME variable and if it's exported use it as data directory
-    ps_home = os.environ.get("PERMASIGNER_HOME")
-    if ps_home:
+    if ps_home := os.environ.get("PERMASIGNER_HOME"):
         return Path(ps_home)
 
     # Get path to user's $HOME
@@ -103,16 +97,11 @@ def get_storage_dir() -> Path:
     # then, use $XDG_DATA_HOME as data directory
     # otherwise, default to $HOME/.local/share
     if is_linux() or is_freebsd():
-        xdg_data = os.environ.get("XDG_DATA_HOME")
-        if xdg_data:
+        if xdg_data := os.environ.get("XDG_DATA_HOME"):
             return Path(xdg_data).joinpath("permasigner")
         return home / ".local/share/permasigner"
-    # Check if OS is iOS or macOS
-    # then, use $HOME/Library/Application Support/permasigner as data directory
     elif is_ios() or is_macos():
         return home / ".permasigner"
-    # Check if OS is Windows
-    # then, use %APPDATA%/permasigner as data directory
     elif is_windows():
         return home / "AppData/Roaming/permasigner"
 
@@ -132,7 +121,7 @@ def find_application_bundle(tmp: Path) -> Union[Path, str]:
             logger.error("Did not find application bundle")
             exit(1)
     else:
-        logger.error(f"IPA/deb is not valid!")
+        logger.error("IPA/deb is not valid!")
         exit(1)
 
     return bundle
@@ -142,31 +131,16 @@ def read_plist(path: Path, args: Namespace) -> dict:
     # Read bundle information from Info.plist
     with open(path, 'rb') as f:
 
-        bundle = {}
         info = plistlib.load(f)
 
-        if args.name:
-            bundle["name"] = args.name
-        else:
-            bundle["name"] = info["CFBundleName"]
+        bundle = {
+            "name": args.name or info["CFBundleName"],
+            "id": args.bundleid or info["CFBundleIdentifier"],
+            "version": info["CFBundleShortVersionString"],
+            "min_ios": args.minver or info["MinimumOSVersion"],
+        }
 
-        if args.bundleid:
-            bundle["id"] = args.bundleid
-        else:
-            bundle["id"] = info["CFBundleIdentifier"]
-
-        bundle["version"] = info["CFBundleShortVersionString"]
-
-        if args.minver:
-            bundle["min_ios"] = args.minver
-        else:
-            bundle["min_ios"] = info["MinimumOSVersion"]
-
-        if args.author:
-            bundle["author"] = args.author
-        else:
-            bundle["author"] = bundle["id"].split(".")[1]
-
+        bundle["author"] = args.author or bundle["id"].split(".")[1]
         bundle["executable"] = info["CFBundleExecutable"]
 
     return bundle
@@ -196,13 +170,9 @@ def get_output_directory(data_dir: Path, in_package: bool, output_arg: str) -> P
     # then, return it's value as a Path
     if output_arg:
         return Path(output_arg)
-    # Check if running in a git repository
-    # or a tarball then, return path in current dir
     elif not in_package or Path('.git').exists():
         return Path.cwd() / "output"
-    # Check if running from a package
-    # then, return path to output dir in data dir
-    elif in_package:
+    else:
         return data_dir / "output"
 
 
